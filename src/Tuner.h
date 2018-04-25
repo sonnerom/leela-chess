@@ -36,6 +36,7 @@ class Tuner {
 public:
     std::string tune_sgemm(const int m, const int n, const int k,
                            const int batch_size, const int runs = 4);
+    std::vector<Configurations> getConfigurations(const bool cfg_sgemm_exhaustive);
     std::string load_sgemm_tuners(const int m, const int n, const int k,
                                   const int batch_size);
 

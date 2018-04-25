@@ -197,42 +197,7 @@ static float compare_ref(std::vector<float> &x, std::vector<float> &ref,
 
 std::string Tuner::tune_sgemm(const int m, const int n, const int k,
                               const int batch_size, const int runs) {
-    auto opts = std::vector<Configurations>();
-    if (cfg_sgemm_exhaustive) {
-        opts = {
-            {"MWG", {16, 32, 64}},
-            {"NWG", {16, 32, 64}},
-            {"KWG", {16, 32}},
-            {"MDIMC", {8, 16, 32}},
-            {"NDIMC", {8, 16, 32}},
-            {"MDIMA", {8, 16, 32}},
-            {"NDIMB", {8, 16, 32}},
-            {"KWI", {2, 8}},
-            {"VWM", {1, 2, 4, 8}},
-            {"VWN", {1, 2, 4, 8}},
-            {"STRM", {0, 1}},
-            {"STRN", {0, 1}},
-            {"SA", {0, 1}},
-            {"SB", {0, 1}},
-        };
-    } else {
-        opts = {
-            {"MWG", {16, 32, 64}},
-            {"NWG", {16, 32, 64}},
-            {"KWG", {32}},
-            {"MDIMC", {8, 16, 32}},
-            {"NDIMC", {8, 16, 32}},
-            {"MDIMA", {8, 16, 32}},
-            {"NDIMB", {8, 16, 32}},
-            {"KWI", {2}},
-            {"VWM", {1, 2, 4}},
-            {"VWN", {1, 2, 4}},
-            {"STRM", {0}},
-            {"STRN", {0}},
-            {"SA", {0, 1}},
-            {"SB", {0, 1}},
-        };
-    }
+    auto opts = getConfigurations(cfg_sgemm_exhaustive);
 
     // This needs to be at minimum the maximum (MNK/WG) values above.
     auto m_max = std::max(64, m);
@@ -402,6 +367,47 @@ std::string Tuner::tune_sgemm(const int m, const int n, const int k,
         throw std::runtime_error("Tuner failed to find working configuration.");
     }
     return best_params;
+}
+
+std::vector<Configurations> Tuner::getConfigurations(const bool cfg_sgemm_exhaustive)
+{
+    auto opts = std::vector<Configurations>();
+    opts.append({"MWG", {16, 32, 64}});
+
+    if (cfg_sgemm_exhaustive) {
+        opts = {
+            {"NWG", {16, 32, 64}},
+            {"KWG", {16, 32}},
+            {"MDIMC", {8, 16, 32}},
+            {"NDIMC", {8, 16, 32}},
+            {"MDIMA", {8, 16, 32}},
+            {"NDIMB", {8, 16, 32}},
+            {"KWI", {2, 8}},
+            {"VWM", {1, 2, 4, 8}},
+            {"VWN", {1, 2, 4, 8}},
+            {"STRM", {0, 1}},
+            {"STRN", {0, 1}},
+            {"SA", {0, 1}},
+            {"SB", {0, 1}},
+        };
+    } else {
+        opts = {
+            {"NWG", {16, 32, 64}},
+            {"KWG", {32}},
+            {"MDIMC", {8, 16, 32}},
+            {"NDIMC", {8, 16, 32}},
+            {"MDIMA", {8, 16, 32}},
+            {"NDIMB", {8, 16, 32}},
+            {"KWI", {2}},
+            {"VWM", {1, 2, 4}},
+            {"VWN", {1, 2, 4}},
+            {"STRM", {0}},
+            {"STRN", {0}},
+            {"SA", {0, 1}},
+            {"SB", {0, 1}},
+        };
+    }
+    return opts;
 }
 
 void Tuner::store_sgemm_tuners(const int m, const int n, const int k,
