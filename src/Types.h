@@ -146,13 +146,6 @@ template<Color C, CastlingSide S> struct MakeCastling {
                      : S == QUEEN_SIDE ? BLACK_OOO : BLACK_OO;
 };
 
-enum Bound {
-  BOUND_NONE,
-  BOUND_UPPER,
-  BOUND_LOWER,
-  BOUND_EXACT = BOUND_UPPER | BOUND_LOWER
-};
-
 enum PieceType {
   NO_PIECE_TYPE, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING,
   ALL_PIECES = 0,
