@@ -44,6 +44,8 @@
 #include <cstdint>
 #include <cstdlib>
 
+#include "MoveType.h"
+
 #if defined(_MSC_VER)
 // Disable some silly and noisy warning from MSVC compiler
 #pragma warning(disable: 4127) // Conditional expression is constant
@@ -118,13 +120,6 @@ const int MAX_PLY   = 128;
 enum Move : int {
   MOVE_NONE,
   MOVE_NULL = 65
-};
-
-enum MoveType {
-  NORMAL,
-  PROMOTION = 1 << 14,
-  ENPASSANT = 2 << 14,
-  CASTLING  = 3 << 14
 };
 
 enum Color {
