@@ -3717,21 +3717,10 @@ public:
         bool useHostPtr = false,
         cl_int* err = NULL)
     {
-        typedef typename std::iterator_traits<IteratorType>::value_type DataType;
-        cl_int error;
-
         cl_mem_flags flags = 0;
-        if( readOnly ) {
-            flags |= CL_MEM_READ_ONLY;
-        }
-        else {
-            flags |= CL_MEM_READ_WRITE;
-        }
-        if( useHostPtr ) {
-            flags |= CL_MEM_USE_HOST_PTR;
-        }
-        
-        size_type size = sizeof(DataType)*(endIterator - startIterator);
+        size_type size = myBufferInit(readOnly, useHostPtr, cl_mem_flags);
+
+        cl_int error;
 
         Context context = Context::getDefault(err);
 
@@ -3851,6 +3840,24 @@ public:
         return result;
     }		
 #endif // CL_HPP_TARGET_OPENCL_VERSION >= 110
+
+    size_type myBufferInit(const bool readOnly, const bool useHostPtr, cl_mem_flags &flags)
+    {
+        typedef typename std::iterator_traits<IteratorType>::value_type DataType;
+
+        if( readOnly ) {
+            flags |= CL_MEM_READ_ONLY;
+        }
+        else {
+            flags |= CL_MEM_READ_WRITE;
+        }
+        if( useHostPtr ) {
+            flags |= CL_MEM_USE_HOST_PTR;
+        }
+
+        size_type size = sizeof(DataType)*(endIterator - startIterator);
+        return size;
+    }
 };
 
 #if defined (CL_HPP_USE_DX_INTEROP)
@@ -4530,8 +4537,7 @@ public:
         const Context& context,
         cl_mem_flags flags,
         ImageFormat format,
-        size_type width,
-        size_type height,
+        Rect dimensions,
         size_type row_pitch = 0,
         void* host_ptr = NULL,
         cl_int* err = NULL)
@@ -4557,8 +4563,7 @@ public:
             cl_image_desc desc =
             {
                 CL_MEM_OBJECT_IMAGE2D,
-                width,
-                height,
+                dimensions,
                 0, 0, // depth, array size (unused)
                 row_pitch,
                 0, 0, 0, 0
@@ -4601,8 +4606,7 @@ public:
         const Context& context,
         ImageFormat format,
         const Buffer &sourceBuffer,
-        size_type width,
-        size_type height,
+        Rect dimensions,
         size_type row_pitch = 0,
         cl_int* err = nullptr)
     {
@@ -4611,8 +4615,7 @@ public:
         cl_image_desc desc =
         {
             CL_MEM_OBJECT_IMAGE2D,
-            width,
-            height,
+            dimensions,
             0, 0, // depth, array size (unused)
             row_pitch,
             0, 0, 0,
@@ -4862,8 +4865,7 @@ public:
         cl_mem_flags flags,
         ImageFormat format,
         size_type arraySize,
-        size_type width,
-        size_type height,
+        Rect dimensions,
         size_type rowPitch,
         size_type slicePitch,
         void* host_ptr = NULL,
@@ -4873,8 +4875,7 @@ public:
         cl_image_desc desc =
         {
             CL_MEM_OBJECT_IMAGE2D_ARRAY,
-            width,
-            height,
+            dimensions,
             0,       // depth (unused)
             arraySize,
             rowPitch,
@@ -4942,6 +4943,18 @@ public:
 };
 #endif // #if CL_HPP_TARGET_OPENCL_VERSION >= 120
 
+struct Rect
+{
+    Rect(const size_type width, const size_type height) :
+        m_width(width),
+        m_height(height)
+    {
+    }
+
+    size_type m_width;
+    size_type m_height;
+};
+
 /*! \brief Class interface for 3D Image Memory objects.
  *
  *  See Memory for details about copy semantics, etc.
@@ -4959,8 +4972,7 @@ public:
         const Context& context,
         cl_mem_flags flags,
         ImageFormat format,
-        size_type width,
-        size_type height,
+        Rect dimensions,
         size_type depth,
         size_type row_pitch = 0,
         size_type slice_pitch = 0,
@@ -4988,8 +5000,7 @@ public:
             cl_image_desc desc =
             {
                 CL_MEM_OBJECT_IMAGE3D,
-                width,
-                height,
+                dimensions,
                 depth,
                 0,      // array size (unused)
                 row_pitch,
@@ -7144,20 +7155,7 @@ public:
         const vector<Event>* events = NULL,
         Event* event = NULL) const
     {
-        cl_event tmp;
-        cl_int err = detail::errHandler(
-            ::clEnqueueReadBuffer(
-                object_, buffer(), blocking, offset, size,
-                ptr,
-                (events != NULL) ? (cl_uint) events->size() : 0,
-                (events != NULL && events->size() > 0) ? (cl_event*) &events->front() : NULL,
-                (event != NULL) ? &tmp : NULL),
-            __ENQUEUE_READ_BUFFER_ERR);
-
-        if (event != NULL && err == CL_SUCCESS)
-            *event = tmp;
-
-        return err;
+        return myBufferFunc(blocking, offset, size, ptr, events, event);
     }
 
     cl_int enqueueWriteBuffer(
@@ -7169,20 +7167,7 @@ public:
         const vector<Event>* events = NULL,
         Event* event = NULL) const
     {
-        cl_event tmp;
-        cl_int err = detail::errHandler(
-            ::clEnqueueWriteBuffer(
-                object_, buffer(), blocking, offset, size,
-                ptr,
-                (events != NULL) ? (cl_uint) events->size() : 0,
-                (events != NULL && events->size() > 0) ? (cl_event*) &events->front() : NULL,
-                (event != NULL) ? &tmp : NULL),
-                __ENQUEUE_WRITE_BUFFER_ERR);
-
-        if (event != NULL && err == CL_SUCCESS)
-            *event = tmp;
-
-        return err;
+        return myBufferFunc(blocking, offset, size, ptr, events, event);
     }
 
     cl_int enqueueCopyBuffer(
@@ -7194,19 +7179,7 @@ public:
         const vector<Event>* events = NULL,
         Event* event = NULL) const
     {
-        cl_event tmp;
-        cl_int err = detail::errHandler(
-            ::clEnqueueCopyBuffer(
-                object_, src(), dst(), src_offset, dst_offset, size,
-                (events != NULL) ? (cl_uint) events->size() : 0,
-                (events != NULL && events->size() > 0) ? (cl_event*) &events->front() : NULL,
-                (event != NULL) ? &tmp : NULL),
-            __ENQEUE_COPY_BUFFER_ERR);
-
-        if (event != NULL && err == CL_SUCCESS)
-            *event = tmp;
-
-        return err;
+        return myBufferFunc(blocking, offset, size, ptr, events, event);
     }
 
     cl_int enqueueReadBufferRect(
@@ -7287,16 +7260,12 @@ public:
         return err;
     }
 
+
+
     cl_int enqueueCopyBufferRect(
-        const Buffer& src,
-        const Buffer& dst,
-        const array<size_type, 3>& src_origin,
-        const array<size_type, 3>& dst_origin,
+        const MyUnknownBufferStruct &src,
+        const MyUnknownBufferStruct &dst,
         const array<size_type, 3>& region,
-        size_type src_row_pitch,
-        size_type src_slice_pitch,
-        size_type dst_row_pitch,
-        size_type dst_slice_pitch,
         const vector<Event>* events = NULL,
         Event* event = NULL) const
     {
@@ -7306,13 +7275,7 @@ public:
                 object_, 
                 src(), 
                 dst(), 
-                src_origin.data(),
-                dst_origin.data(),
                 region.data(),
-                src_row_pitch,
-                src_slice_pitch,
-                dst_row_pitch,
-                dst_slice_pitch,
                 (events != NULL) ? (cl_uint) events->size() : 0,
                 (events != NULL && events->size() > 0) ? (cl_event*) &events->front() : NULL,
                 (event != NULL) ? &tmp : NULL),
@@ -8224,6 +8187,24 @@ typedef CL_API_ENTRY cl_int (CL_API_CALL *PFN_clEnqueueReleaseD3D10ObjectsKHR)(
     {
         return detail::errHandler(::clFinish(object_), __FINISH_ERR);
     }
+
+    void myBufferFunc(const cl_bool &blocking, const size_type &offset, const size_type &size, void *ptr, const vector<Event>* events, Event* event)
+    {
+        cl_event tmp;
+        cl_int err = detail::errHandler(
+            ::clEnqueueReadBuffer(
+                object_, buffer(), blocking, offset, size,
+                ptr,
+                (events != NULL) ? (cl_uint) events->size() : 0,
+                (events != NULL && events->size() > 0) ? (cl_event*) &events->front() : NULL,
+                (event != NULL) ? &tmp : NULL),
+            __ENQUEUE_READ_BUFFER_ERR);
+
+        if (event != NULL && err == CL_SUCCESS)
+            *event = tmp;
+
+        return err;
+    }
 }; // CommandQueue
 
 CL_HPP_DEFINE_STATIC_MEMBER_ std::once_flag CommandQueue::default_initialized_;
@@ -8505,21 +8486,10 @@ Buffer::Buffer(
     bool useHostPtr,
     cl_int* err)
 {
-    typedef typename std::iterator_traits<IteratorType>::value_type DataType;
-    cl_int error;
-
     cl_mem_flags flags = 0;
-    if( readOnly ) {
-        flags |= CL_MEM_READ_ONLY;
-    }
-    else {
-        flags |= CL_MEM_READ_WRITE;
-    }
-    if( useHostPtr ) {
-        flags |= CL_MEM_USE_HOST_PTR;
-    }
-    
-    size_type size = sizeof(DataType)*(endIterator - startIterator);
+    size_type size = myBufferInit(readOnly, useHostPtr, cl_mem_flags);
+
+    cl_int error;
 
     if( useHostPtr ) {
         object_ = ::clCreateBuffer(context(), flags, size, static_cast<DataType*>(&*startIterator), &error);
@@ -8547,6 +8517,8 @@ Buffer::Buffer(
     }
 }
 
+
+
 template< typename IteratorType >
 Buffer::Buffer(
     const CommandQueue &queue,
@@ -8556,21 +8528,10 @@ Buffer::Buffer(
     bool useHostPtr,
     cl_int* err)
 {
-    typedef typename std::iterator_traits<IteratorType>::value_type DataType;
-    cl_int error;
-
     cl_mem_flags flags = 0;
-    if (readOnly) {
-        flags |= CL_MEM_READ_ONLY;
-    }
-    else {
-        flags |= CL_MEM_READ_WRITE;
-    }
-    if (useHostPtr) {
-        flags |= CL_MEM_USE_HOST_PTR;
-    }
+    size_type size = myBufferInit(readOnly, useHostPtr, cl_mem_flags);
 
-    size_type size = sizeof(DataType)*(endIterator - startIterator);
+    cl_int error;
 
     Context context = queue.getInfo<CL_QUEUE_CONTEXT>();
 
@@ -9051,15 +9012,9 @@ inline cl_int enqueueWriteBufferRect(
 }
 
 inline cl_int enqueueCopyBufferRect(
-    const Buffer& src,
-    const Buffer& dst,
-    const array<size_type, 3>& src_origin,
-    const array<size_type, 3>& dst_origin,
+    const MyUnknownBufferStruct &src,
+    const MyUnknownBufferStruct &dst,
     const array<size_type, 3>& region,
-    size_type src_row_pitch,
-    size_type src_slice_pitch,
-    size_type dst_row_pitch,
-    size_type dst_slice_pitch,
     const vector<Event>* events = NULL,
     Event* event = NULL)
 {
@@ -9073,13 +9028,7 @@ inline cl_int enqueueCopyBufferRect(
     return queue.enqueueCopyBufferRect(
         src,
         dst,
-        src_origin,
-        dst_origin,
         region,
-        src_row_pitch,
-        src_slice_pitch,
-        dst_row_pitch,
-        dst_slice_pitch,
         events, 
         event);
 }
@@ -9673,6 +9622,24 @@ namespace compatibility {
 #undef CL_HPP_NOEXCEPT_
 #undef CL_HPP_DEFINE_STATIC_MEMBER_
 
+struct MyUnknownBufferStruct
+{
+        MyUnknownBufferStruct(const Buffer& buf, const array<size_type, 3>& origin, size_type rowPitch, size_type slicePitch) :
+            m_buf(buf),
+            m_origin(origin),
+            m_rowPitch(rowPitch),
+            m_slicePitch(slicePitch)
+        {
+        }
+
+        const Buffer& m_buf;
+        const array<size_type, 3>& m_origin;
+        size_type m_rowPitch;
+        size_type m_slicePitch;
+};
+
 } // namespace cl
+
+
 
 #endif // CL_HPP_
